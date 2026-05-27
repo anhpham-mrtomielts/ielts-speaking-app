@@ -83,24 +83,11 @@ def elapsed_timer_bar():
     """Slim elapsed time bar — always visible during a session."""
     if st.session_state.get("test_start_time"):
         elapsed = time.time() - st.session_state.test_start_time
-        st.markdown(
-            f"""<div style='
-                background:#f0f2f6; border-radius:8px; padding:6px 14px;
-                display:flex; justify-content:space-between; align-items:center;
-                font-size:0.85rem; color:#555; margin-bottom:8px;'>
-                <span>⏱ Total elapsed</span>
-                <span style='font-weight:bold; font-family:monospace; font-size:1rem;'>
-                    {format_time(elapsed)}
-                </span>
-            </div>""",
-            unsafe_allow_html=True,
-        )
+        st.metric(label="⏱ Total elapsed", value=format_time(elapsed))
 
 def compact_timer(key, duration, label=""):
     """
-    Compact inline timer: question text stays on the left,
-    timer sits quietly on the right — small, unobtrusive.
-    Returns True if the timer just hit zero (for flash warning).
+    Compact inline timer using st.metric — works safely inside columns.
     """
     timer_key = f"timer_{key}_running"
     start_key = f"timer_{key}_start"
@@ -124,53 +111,27 @@ def compact_timer(key, duration, label=""):
     else:
         remaining = 0.0 if st.session_state[done_key] else float(duration)
 
-    # Colour logic
-    if st.session_state[done_key] and not running:
-        time_color = "#e53935"   # red when expired
-        time_text  = "00:00"
-    elif running and remaining <= 10:
-        time_color = "#e53935"   # red last 10 s
-        time_text  = format_time(remaining)
-    elif running:
-        time_color = "#1976d2"   # blue while running
-        time_text  = format_time(remaining)
-    else:
-        time_color = "#888"      # grey when idle
-        time_text  = format_time(duration)
+    # Display — st.metric renders reliably everywhere
+    display_label = label if label else ("⏱ Running" if running else ("⏱ Done" if st.session_state[done_key] else "⏱ Ready"))
+    st.metric(label=display_label, value=format_time(remaining))
 
-    # Layout: timer display + button, right-aligned, compact
-    col_btn, col_time = st.columns([1, 1])
-    with col_btn:
-        btn_label = f"⏹ Stop" if running else (f"🔁 Reset" if st.session_state[done_key] else f"▶ Start")
-        if st.button(btn_label, key=f"btn_{key}", use_container_width=True):
-            if running:
-                st.session_state[timer_key] = False
-            elif st.session_state[done_key]:
-                # Reset
-                st.session_state[timer_key] = False
-                st.session_state[done_key]  = False
-                st.session_state[start_key] = None
-            else:
-                st.session_state[timer_key] = True
-                st.session_state[start_key] = time.time()
-                st.session_state[done_key]  = False
-            st.rerun()
-
-    with col_time:
-        lbl_html = f"<div style='font-size:0.7rem;color:#aaa;line-height:1;'>{label}</div>" if label else ""
-        st.markdown(
-            f"""<div style='text-align:right;'>
-                {lbl_html}
-                <span style='font-size:1.3rem; font-weight:bold;
-                             font-family:monospace; color:{time_color};'>
-                    {time_text}
-                </span>
-            </div>""",
-            unsafe_allow_html=True,
-        )
+    # Button
+    btn_label = "⏹ Stop" if running else ("🔁 Reset" if st.session_state[done_key] else "▶ Start")
+    if st.button(btn_label, key=f"btn_{key}", use_container_width=True):
+        if running:
+            st.session_state[timer_key] = False
+        elif st.session_state[done_key]:
+            st.session_state[timer_key] = False
+            st.session_state[done_key]  = False
+            st.session_state[start_key] = None
+        else:
+            st.session_state[timer_key] = True
+            st.session_state[start_key] = time.time()
+            st.session_state[done_key]  = False
+        st.rerun()
 
     if just_done:
-        st.warning(f"⚠️ Time's up! Examiner — please decide.")
+        st.warning("⚠️ Time's up! Examiner — please decide.")
 
     return just_done
 

@@ -25,7 +25,6 @@ def load_data():
     df["question"] = df["question"].astype(str).str.strip()
     df["examiner_prompt"] = df["examiner_prompt"].fillna("").astype(str).str.strip()
     df["question_set"] = df["question_set"].fillna("").astype(str).str.strip()
-    # Remove duplicates silently
     df = df.drop_duplicates(subset=["part", "topic", "question_set", "question"])
     df = df[df["question"].notna() & (df["question"] != "") & (df["question"] != "nan")]
     return df
@@ -81,7 +80,6 @@ def show_elapsed_timer():
         )
 
 def countdown_timer_widget(key, duration, label="Timer"):
-    """Shows a countdown timer with a Start button. Flashes warning at zero."""
     timer_key = f"timer_{key}_running"
     start_key = f"timer_{key}_start"
 
@@ -139,6 +137,11 @@ def init_state():
         "show_read_aloud": True,
         "practice_settings": {},
         "test_log": [],
+        # Locked question selections (never re-randomized)
+        "locked_p1_questions": {},   # {topic: [q1, q2, ...]}
+        "locked_p3_set": None,
+        "locked_practice_p1_questions": {},
+        "locked_practice_p3_set": None,
     }
     for k, v in defaults.items():
         if k not in st.session_state:
@@ -198,6 +201,21 @@ def page_practice_setup():
             return
         p1_chosen = random.sample(selected_p1_topics, min(num_p1_topics, len(selected_p1_topics))) if selected_p1_topics else []
         p23_chosen = random.sample(selected_p23_topics, min(num_p23_topics, len(selected_p23_topics))) if selected_p23_topics else []
+
+        # Lock questions NOW before any timer refreshes
+        locked_p1 = {}
+        for topic in p1_chosen:
+            topic_qs = filtered[(filtered["part"] == "1") & (filtered["topic"] == topic)]["question"].tolist()
+            locked_p1[topic] = random.sample(topic_qs, min(4, len(topic_qs)))
+
+        locked_p3 = {}
+        for topic in p23_chosen:
+            p3_sets = filtered[(filtered["part"] == "3") & (filtered["topic"] == topic)]
+            available = p3_sets["question_set"].unique().tolist()
+            if available:
+                chosen_set = random.choice(available)
+                locked_p3[topic] = p3_sets[p3_sets["question_set"] == chosen_set]["question"].tolist()
+
         st.session_state.practice_settings = {
             "sets": selected_sets,
             "p1_topics": p1_chosen,
@@ -205,6 +223,8 @@ def page_practice_setup():
             "timer_mode": timer_mode,
             "df": filtered,
         }
+        st.session_state.locked_practice_p1_questions = locked_p1
+        st.session_state.locked_practice_p3_set = locked_p3
         st.session_state.test_start_time = time.time()
         st.session_state.page = "practice_run"
         st.rerun()
@@ -218,12 +238,9 @@ def page_practice_setup():
 # ─────────────────────────────────────────────
 def page_practice_run():
     settings = st.session_state.practice_settings
-    df = settings["df"]
     timer_mode = settings["timer_mode"]
 
     st.title("📚 Practice Mode")
-
-    # Read-aloud toggle
     st.session_state.show_read_aloud = st.toggle("🔊 Show read-aloud prompts", value=st.session_state.show_read_aloud)
 
     if timer_mode == "Elapsed time":
@@ -236,8 +253,8 @@ def page_practice_run():
         st.header("Part 1")
         for topic in settings["p1_topics"]:
             st.subheader(f"Topic: {topic}")
-            topic_qs = df[(df["part"] == "1") & (df["topic"] == topic)]["question"].tolist()
-            chosen_qs = random.sample(topic_qs, min(4, len(topic_qs)))
+            # Use locked questions — never re-randomized
+            chosen_qs = st.session_state.locked_practice_p1_questions.get(topic, [])
 
             if st.session_state.show_read_aloud:
                 for prompt in get_read_aloud_prompts("1", topic):
@@ -248,11 +265,12 @@ def page_practice_run():
             for i, q in enumerate(chosen_qs):
                 st.markdown(f"**Q{i+1}.** {q}")
                 if timer_mode == "Countdown":
-                    countdown_timer_widget(f"p1_{topic}_{i}", 30, "30s")
+                    countdown_timer_widget(f"prac_p1_{topic}_{i}", 30, "30s")
             st.markdown("---")
 
     # Part 2 & 3
     if settings["p23_topics"]:
+        df = settings["df"]
         for topic in settings["p23_topics"]:
             st.header(f"Part 2 — {topic}")
             p2_qs = df[(df["part"] == "2") & (df["topic"] == topic)]["question"].tolist()
@@ -264,27 +282,26 @@ def page_practice_run():
                     st.warning(reminder)
                 st.markdown(p2_qs[0].replace("\n", "\n\n"))
                 if timer_mode == "Countdown":
-                    countdown_timer_widget(f"p2_prep_{topic}", 60, "1 min Prep")
-                    countdown_timer_widget(f"p2_speak_{topic}", 120, "2 min Speaking")
+                    countdown_timer_widget(f"prac_p2_prep_{topic}", 60, "1 min Prep")
+                    countdown_timer_widget(f"prac_p2_speak_{topic}", 120, "2 min Speaking")
 
             st.markdown("---")
             st.header(f"Part 3 — {topic}")
-            p3_sets = df[(df["part"] == "3") & (df["topic"] == topic)]
-            available_sets_p3 = p3_sets["question_set"].unique().tolist()
-            if available_sets_p3:
-                chosen_set = random.choice(available_sets_p3)
-                set_qs = p3_sets[p3_sets["question_set"] == chosen_set]["question"].tolist()
+            # Use locked Part 3 questions
+            set_qs = st.session_state.locked_practice_p3_set.get(topic, [])
+            if set_qs:
                 if st.session_state.show_read_aloud:
                     for prompt in get_read_aloud_prompts("3", topic):
                         st.info(f"🔊 {prompt}")
                 for reminder in get_reminders("3"):
                     st.warning(reminder)
                 for i, q in enumerate(set_qs):
-                    lines = q.split("\n")
-                    for line in lines:
+                    for line in q.split("\n"):
                         st.markdown(f"**Q{i+1}.** {line}")
                     if timer_mode == "Countdown":
-                        countdown_timer_widget(f"p3_{topic}_{i}", 45, "45s")
+                        countdown_timer_widget(f"prac_p3_{topic}_{i}", 45, "45s")
+            else:
+                st.info("No Part 3 questions available for this topic.")
             st.markdown("---")
 
     if st.button("🏠 Back to Home", use_container_width=True):
@@ -323,11 +340,26 @@ def page_test_setup():
         chosen_p1 = random.sample(p1_topics, 3)
         chosen_p23 = random.choice(paired_topics)
 
+        # Lock all questions NOW before any timer refreshes
+        locked_p1 = {}
+        for topic in chosen_p1:
+            topic_qs = filtered[(filtered["part"] == "1") & (filtered["topic"] == topic)]["question"].tolist()
+            locked_p1[topic] = random.sample(topic_qs, min(4, len(topic_qs)))
+
+        p3_sets_df = filtered[(filtered["part"] == "3") & (filtered["topic"] == chosen_p23)]
+        available_p3 = p3_sets_df["question_set"].unique().tolist()
+        locked_p3_qs = []
+        if available_p3:
+            chosen_set = random.choice(available_p3)
+            locked_p3_qs = p3_sets_df[p3_sets_df["question_set"] == chosen_set]["question"].tolist()
+
         st.session_state.test_questions = {
             "p1_topics": chosen_p1,
             "p23_topic": chosen_p23,
             "df": filtered,
         }
+        st.session_state.locked_p1_questions = locked_p1
+        st.session_state.locked_p3_set = locked_p3_qs
         st.session_state.test_start_time = time.time()
         st.session_state.test_log = []
         st.session_state.page = "test_part1"
@@ -342,7 +374,6 @@ def page_test_setup():
 # ─────────────────────────────────────────────
 def page_test_part1():
     tq = st.session_state.test_questions
-    df = tq["df"]
 
     st.title("🎯 Test Mode — Part 1")
     st.session_state.show_read_aloud = st.toggle("🔊 Show read-aloud prompts", value=st.session_state.show_read_aloud)
@@ -351,8 +382,8 @@ def page_test_part1():
 
     for topic in tq["p1_topics"]:
         st.subheader(f"Topic: {topic}")
-        topic_qs = df[(df["part"] == "1") & (df["topic"] == topic)]["question"].tolist()
-        chosen_qs = random.sample(topic_qs, min(4, len(topic_qs)))
+        # Use locked questions — never re-randomized
+        chosen_qs = st.session_state.locked_p1_questions.get(topic, [])
 
         if st.session_state.show_read_aloud:
             for prompt in get_read_aloud_prompts("1", topic):
@@ -381,7 +412,7 @@ def page_test_part2():
     df = tq["df"]
     topic = tq["p23_topic"]
 
-    st.title(f"🎯 Test Mode — Part 2")
+    st.title("🎯 Test Mode — Part 2")
     st.subheader(f"Topic: {topic}")
     st.session_state.show_read_aloud = st.toggle("🔊 Show read-aloud prompts", value=st.session_state.show_read_aloud)
     show_elapsed_timer()
@@ -410,24 +441,18 @@ def page_test_part2():
 # ─────────────────────────────────────────────
 def page_test_part3():
     tq = st.session_state.test_questions
-    df = tq["df"]
     topic = tq["p23_topic"]
 
-    st.title(f"🎯 Test Mode — Part 3")
+    st.title("🎯 Test Mode — Part 3")
     st.subheader(f"Topic: {topic}")
     st.session_state.show_read_aloud = st.toggle("🔊 Show read-aloud prompts", value=st.session_state.show_read_aloud)
     show_elapsed_timer()
     st.markdown("---")
 
-    p3_sets = df[(df["part"] == "3") & (df["topic"] == topic)]
-    available_sets_p3 = p3_sets["question_set"].unique().tolist()
+    # Use locked questions — never re-randomized
+    set_qs = st.session_state.locked_p3_set
 
-    if available_sets_p3:
-        if "test_p3_set" not in st.session_state:
-            st.session_state.test_p3_set = random.choice(available_sets_p3)
-        chosen_set = st.session_state.test_p3_set
-        set_qs = p3_sets[p3_sets["question_set"] == chosen_set]["question"].tolist()
-
+    if set_qs:
         if st.session_state.show_read_aloud:
             for prompt in get_read_aloud_prompts("3", topic):
                 st.info(f"🔊 {prompt}")
@@ -437,8 +462,7 @@ def page_test_part3():
         for i, q in enumerate(set_qs):
             col1, col2 = st.columns([4, 1])
             with col1:
-                lines = q.split("\n")
-                for line in lines:
+                for line in q.split("\n"):
                     st.markdown(f"**Q{i+1}.** {line}")
             with col2:
                 st.button("⏭ Skip", key=f"skip_p3_{i}")
@@ -473,7 +497,8 @@ def page_test_report():
     col1, col2 = st.columns(2)
     with col1:
         if st.button("🔄 New Test", use_container_width=True):
-            for key in ["test_questions", "test_start_time", "test_end_time", "test_p3_set"]:
+            for key in ["test_questions", "test_start_time", "test_end_time",
+                        "locked_p1_questions", "locked_p3_set"]:
                 if key in st.session_state:
                     del st.session_state[key]
             st.session_state.page = "test_setup"

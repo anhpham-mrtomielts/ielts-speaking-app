@@ -72,6 +72,51 @@ def format_time(seconds):
     m, s = divmod(int(max(0, seconds)), 60)
     return f"{m:02d}:{s:02d}"
 
+def scroll_to_top():
+    """Inject JS to scroll browser to top of page."""
+    st.components.v1.html("<script>window.parent.document.querySelector('section.main').scrollTo(0,0);</script>", height=0)
+
+def question_box(number, text):
+    """Render a question inside a styled card box."""
+    st.markdown(
+        f"""<div style='
+            background:#ffffff;
+            border:1px solid #d0d7de;
+            border-left:4px solid #1976d2;
+            border-radius:6px;
+            padding:12px 16px;
+            margin:6px 0 10px 0;
+            font-size:1rem;
+            line-height:1.5;
+        '>
+        <span style='color:#888; font-size:0.8rem; font-weight:600;'>Q{number}</span><br>
+        {text}
+        </div>""",
+        unsafe_allow_html=True,
+    )
+
+def cue_card_box(topic, lines):
+    """Render a Part 2 cue card preview styled like a physical card."""
+    bullets = "".join(f"<li style='margin:4px 0;'>{l}</li>" for l in lines)
+    st.markdown(
+        f"""<div style='
+            background:#fffef2;
+            border:2px solid #f0c040;
+            border-radius:8px;
+            padding:16px 20px;
+            margin:12px 0;
+            font-size:1rem;
+            line-height:1.6;
+        '>
+        <div style='font-size:0.75rem; color:#aaa; font-weight:600; letter-spacing:1px; margin-bottom:8px;'>📋 CUE CARD</div>
+        <div style='font-weight:bold; font-size:1.05rem; margin-bottom:10px;'>{lines[0] if lines else topic}</div>
+        <ul style='margin:0; padding-left:20px; color:#333;'>
+            {bullets[bullets.find("<li"):] if len(lines) > 1 else ""}
+        </ul>
+        </div>""",
+        unsafe_allow_html=True,
+    )
+
 def any_timer_running():
     """Check if any countdown timer is currently active."""
     return any(
@@ -275,7 +320,7 @@ def page_practice_run():
             for i, q in enumerate(chosen_qs):
                 col_q, col_t = st.columns([3, 1])
                 with col_q:
-                    st.markdown(f"**Q{i+1}.** {q}")
+                    question_box(i + 1, q)
                 with col_t:
                     if timer_mode == "Countdown":
                         compact_timer(f"prac_p1_{topic}_{i}", 30)
@@ -288,12 +333,13 @@ def page_practice_run():
             st.header(f"Part 2 — {topic}")
             p2_qs = df[(df["part"] == "2") & (df["topic"] == topic)]["question"].tolist()
             if p2_qs:
+                raw_lines = [l.strip() for l in p2_qs[0].replace("\r", "").split("\n") if l.strip()]
                 if st.session_state.show_read_aloud:
                     for p in get_read_aloud_prompts("2", topic):
                         st.info(f"🔊 {p}")
                 for r in get_reminders("2"):
                     st.warning(r)
-                st.markdown(p2_qs[0].replace("\n", "\n\n"))
+                question_box("", "\n".join(f"<br>{'• ' if j > 0 else ''}{l}" for j, l in enumerate(raw_lines)))
                 if timer_mode == "Countdown":
                     compact_timer(f"prac_p2_prep_{topic}", 60, "Prep (1 min)")
                     compact_timer(f"prac_p2_speak_{topic}", 120, "Speaking (2 min)")
@@ -310,8 +356,9 @@ def page_practice_run():
                 for i, q in enumerate(set_qs):
                     col_q, col_t = st.columns([3, 1])
                     with col_q:
-                        for line in q.split("\n"):
-                            st.markdown(f"**Q{i+1}.** {line}")
+                        lines = [l.strip() for l in q.split("\n") if l.strip()]
+                        for j, line in enumerate(lines):
+                            question_box(i + 1 if j == 0 else "", line)
                     with col_t:
                         if timer_mode == "Countdown":
                             compact_timer(f"prac_p3_{topic}_{i}", 45)
@@ -398,13 +445,14 @@ def page_test_part1():
         for i, q in enumerate(chosen_qs):
             col_q, col_t = st.columns([3, 1])
             with col_q:
-                st.markdown(f"**Q{i+1}.** {q}")
+                question_box(i + 1, q)
             with col_t:
                 compact_timer(f"test_p1_{topic}_{i}", 30)
         st.markdown("---")
 
     if st.button("➡ Continue to Part 2", use_container_width=True):
         st.session_state.page = "test_part2"
+        scroll_to_top()
         st.rerun()
 
 # ─────────────────────────────────────────────
@@ -423,12 +471,20 @@ def page_test_part2():
 
     p2_qs = df[(df["part"] == "2") & (df["topic"] == topic)]["question"].tolist()
     if p2_qs:
+        # Cue card preview
+        raw_lines = [l.strip() for l in p2_qs[0].replace("\r", "").split("\n") if l.strip()]
+        with st.expander("📋 Cue Card Preview (for examiner prep)", expanded=False):
+            cue_card_box(topic, raw_lines)
+
+        st.markdown("&nbsp;")
         if st.session_state.show_read_aloud:
             for p in get_read_aloud_prompts("2", topic):
                 st.info(f"🔊 {p}")
         for r in get_reminders("2"):
             st.warning(r)
-        st.markdown(p2_qs[0].replace("\n", "\n\n"))
+
+        # Full cue card shown during test
+        question_box("", "\n".join(f"<br>{'• ' if j > 0 else ''}{l}" for j, l in enumerate(raw_lines)))
         st.markdown("&nbsp;")
         compact_timer("test_p2_prep",  60,  "Prep (1 min)")
         compact_timer("test_p2_speak", 120, "Speaking (2 min)")
@@ -438,6 +494,7 @@ def page_test_part2():
     st.markdown("---")
     if st.button("➡ Continue to Part 3", use_container_width=True):
         st.session_state.page = "test_part3"
+        scroll_to_top()
         st.rerun()
 
 # ─────────────────────────────────────────────
@@ -464,8 +521,9 @@ def page_test_part3():
         for i, q in enumerate(set_qs):
             col_q, col_t = st.columns([3, 1])
             with col_q:
-                for line in q.split("\n"):
-                    st.markdown(f"**Q{i+1}.** {line}")
+                lines = [l.strip() for l in q.split("\n") if l.strip()]
+                for j, line in enumerate(lines):
+                    question_box(i + 1 if j == 0 else "", line)
             with col_t:
                 compact_timer(f"test_p3_{i}", 45)
             st.markdown("---")

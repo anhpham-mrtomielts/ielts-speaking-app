@@ -86,10 +86,10 @@ def question_box(number, text):
             border-radius:6px;
             padding:12px 16px;
             margin:6px 0 10px 0;
-            font-size:1rem;
-            line-height:1.5;
+            font-size:1.15rem;
+            line-height:1.6;
         '>
-        <span style='color:#888; font-size:0.8rem; font-weight:600;'>Q{number}</span><br>
+        <span style='color:#888; font-size:0.85rem; font-weight:600;'>Q{number}</span><br>
         {text}
         </div>""",
         unsafe_allow_html=True,
@@ -198,6 +198,7 @@ def init_state():
         "locked_p3_set": [],
         "locked_practice_p1_questions": {},
         "locked_practice_p3_set": {},
+        "preview_data": None,
     }
     for k, v in defaults.items():
         if k not in st.session_state:
@@ -410,17 +411,57 @@ def page_test_setup():
         avail_p3 = p3df["question_set"].unique().tolist()
         locked_p3 = p3df[p3df["question_set"] == random.choice(avail_p3)]["question"].tolist() if avail_p3 else []
 
+        p2_raw   = filtered[(filtered["part"] == "2") & (filtered["topic"] == chosen_p23)]["question"].tolist()
+        p2_lines = [l.strip() for l in p2_raw[0].replace("\r", "").split("\n") if l.strip()] if p2_raw else []
+
         st.session_state.test_questions          = {"p1_topics": chosen_p1, "p23_topic": chosen_p23, "df": filtered}
         st.session_state.locked_p1_questions     = locked_p1
         st.session_state.locked_p3_set           = locked_p3
-        st.session_state.test_start_time         = time.time()
         st.session_state.test_log                = []
-        st.session_state.page                    = "test_part1"
+        st.session_state.preview_data            = {
+            "topic": chosen_p23,
+            "lines": p2_lines,
+        }
+        st.session_state.page                    = "test_preview"
         st.rerun()
 
     if st.button("🏠 Back to Home"):
         st.session_state.page = "home"
         st.rerun()
+
+# ─────────────────────────────────────────────
+# TEST — CUE CARD PREVIEW
+# ─────────────────────────────────────────────
+def page_test_preview():
+    preview = st.session_state.preview_data
+    tq      = st.session_state.test_questions
+
+    st.title("🎯 Test Mode — Preview")
+    st.markdown("Review the Part 2 cue card below and prepare the physical card. Press **Begin Test** when ready.")
+    st.markdown("---")
+
+    st.markdown("### 📋 Part 2 Cue Card")
+    cue_card_box(preview["topic"], preview["lines"])
+
+    st.markdown("### 🗂 Topics selected for this test")
+    st.markdown("**Part 1:**")
+    for t in tq["p1_topics"]:
+        st.markdown(f"- {t}")
+    st.markdown(f"**Part 2 & 3:** {tq['p23_topic']}")
+
+    st.markdown("---")
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("▶ Begin Test", use_container_width=True, type="primary"):
+            st.session_state.test_start_time = time.time()
+            st.session_state.page = "test_part1"
+            scroll_to_top()
+            st.rerun()
+    with col2:
+        if st.button("🏠 Back to Home", use_container_width=True):
+            for key in list(st.session_state.keys()):
+                del st.session_state[key]
+            st.rerun()
 
 # ─────────────────────────────────────────────
 # TEST — PART 1
@@ -471,12 +512,7 @@ def page_test_part2():
 
     p2_qs = df[(df["part"] == "2") & (df["topic"] == topic)]["question"].tolist()
     if p2_qs:
-        # Cue card preview
         raw_lines = [l.strip() for l in p2_qs[0].replace("\r", "").split("\n") if l.strip()]
-        with st.expander("📋 Cue Card Preview (for examiner prep)", expanded=False):
-            cue_card_box(topic, raw_lines)
-
-        st.markdown("&nbsp;")
         if st.session_state.show_read_aloud:
             for p in get_read_aloud_prompts("2", topic):
                 st.info(f"🔊 {p}")
@@ -575,6 +611,7 @@ if page == "home":             page_home()
 elif page == "practice_setup": page_practice_setup()
 elif page == "practice_run":   page_practice_run()
 elif page == "test_setup":     page_test_setup()
+elif page == "test_preview":   page_test_preview()
 elif page == "test_part1":     page_test_part1()
 elif page == "test_part2":     page_test_part2()
 elif page == "test_part3":     page_test_part3()

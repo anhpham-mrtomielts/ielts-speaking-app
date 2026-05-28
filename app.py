@@ -314,7 +314,7 @@ if any_timer_running() or st.session_state.get("test_start_time"):
 logo_url = st.session_state.get("logo_url", "")
 if logo_url:
     st.markdown(
-        f"<div style='text-align:center;'><img src='{logo_url}' width='180'></div>",
+        f"<div style='text-align:center;'><img src='{logo_url}' width='240'></div>",
         unsafe_allow_html=True)
 # ─────────────────────────────────────────────
 # HOME PAGE

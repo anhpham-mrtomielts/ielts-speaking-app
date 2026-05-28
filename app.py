@@ -305,15 +305,17 @@ st.session_state.logo_url = "https://raw.githubusercontent.com/anhpham-mrtomielt
 
 if any_timer_running() or st.session_state.get("test_start_time"):
     st_autorefresh(interval=1000, limit=None, key="global_refresh")
-
+logo_url = st.session_state.get("logo_url", "")
+    if logo_url:
+    st.markdown(
+        f"<div style='text-align:center;'><img src='{logo_url}' width='160'></div>",
+        unsafe_allow_html=True)
 # ─────────────────────────────────────────────
 # HOME PAGE
 # ─────────────────────────────────────────────
 def page_home():
     # Logo placeholder — swap src with your own URL or base64 string
-    logo_url = st.session_state.get("logo_url", "")
-    if logo_url:
-        st.image(logo_url, width=160)
+    
 
     st.title("🎓 IELTS Speaking App")
     st.markdown("Welcome! Choose a mode to get started.")

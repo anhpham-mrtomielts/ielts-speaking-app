@@ -301,6 +301,8 @@ def init_state():
 
 init_state()
 
+st.session_state.logo_url = "https://raw.githubusercontent.com/anhpham-mrtomielts/ielts-speaking-app/main/logo.png"
+
 if any_timer_running() or st.session_state.get("test_start_time"):
     st_autorefresh(interval=1000, limit=None, key="global_refresh")
 

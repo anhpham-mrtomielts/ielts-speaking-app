@@ -279,34 +279,9 @@ def compact_timer(key, duration, label=""):
 # ─────────────────────────────────────────────
 # PART 1 TOPIC SELECTION LOGIC (Test mode)
 # ─────────────────────────────────────────────
-# Fix #5: 50% chance "Home Towns" as first topic,
-#         50% chance "Jobs" + "Studies" as combined first slot
-SLOT1_OPTION_A = ["Home Towns"]          # single topic
-SLOT1_OPTION_B = ["Jobs", "Studies"]     # two topics treated as one slot
-
 def pick_test_p1_topics(all_topics):
-    """
-    Returns an ordered list of topics for Part 1.
-    Slot 1 is either [Home Towns] or [Jobs, Studies].
-    Remaining slots filled randomly from leftover topics.
-    Total unique topics = 3 slots (slot 1 may contain 2 topics).
-    """
-    use_option_b = random.random() < 0.5
-
-    if use_option_b:
-        slot1 = [t for t in SLOT1_OPTION_B if t in all_topics]
-        if len(slot1) < 2:          # fall back if topics missing from sheet
-            use_option_b = False
-
-    if not use_option_b:
-        slot1_candidates = [t for t in SLOT1_OPTION_A if t in all_topics]
-        slot1 = slot1_candidates[:1] if slot1_candidates else []
-
-    used         = set(slot1)
-    remaining    = [t for t in all_topics if t not in used]
-    # Slot 1 always counts as 1 slot. We need 2 more random topics to make 3 slots total.
-    extra        = random.sample(remaining, min(2, len(remaining)))
-    return slot1 + extra  # e.g. ["Home Towns","Travel","Tech"] or ["Jobs","Studies","Travel","Tech"]
+    """Pick 3 random Part 1 topics."""
+    return random.sample(all_topics, min(3, len(all_topics)))
 
 # ─────────────────────────────────────────────
 # SESSION STATE INIT
@@ -498,8 +473,7 @@ def page_practice_run():
 # ─────────────────────────────────────────────
 def page_test_setup():
     st.title("🎯 Test Mode")
-    st.markdown("The system will automatically select **3 Part 1 topic slots** and **1 Part 2 & 3 topic**.")
-    st.caption("ℹ️ Slot 1 is always Home Towns OR Jobs + Studies (50/50), as per real IELTS format.")
+    st.markdown("The system will automatically select **3 Part 1 topics** and **1 Part 2 & 3 topic**.")
     df = load_data()
 
     available_sets = sorted(df["set"].unique().tolist())

@@ -541,7 +541,7 @@ def page_test_preview():
     st.markdown("### 📋 Part 2 Cue Card")
     cue_card_box(preview["topic"], preview["lines"])
 
-    st.markdown("### 🗂 Topics for this test")
+    st.markdown("### 📃 Topics for this test")
     st.markdown("**Part 1:**")
     for t in tq["p1_topics"]: st.markdown(f"- {t}")
     st.markdown(f"**Part 2 & 3:** {tq['p23_topic']}")

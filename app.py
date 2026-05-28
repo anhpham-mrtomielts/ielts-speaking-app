@@ -316,7 +316,7 @@ if logo_url:
 # HOME PAGE
 # ─────────────────────────────────────────────
 def page_home():
-    st.title("🎓 IELTS Speaking App")
+    st.title("🗣️ IELTS Speaking Generator")
     st.markdown("Welcome! Choose a mode to get started.")
     st.markdown("---")
     col1, col2 = st.columns(2)
@@ -327,17 +327,6 @@ def page_home():
         if st.button("🎯 Test Mode", use_container_width=True):
             st.session_state.page = "test_setup"; st.rerun()
     
-
-    st.title("🎓 IELTS Speaking App")
-    st.markdown("Welcome! Choose a mode to get started.")
-    st.markdown("---")
-    col1, col2 = st.columns(2)
-    with col1:
-        if st.button("📚 Practice Mode", use_container_width=True):
-            st.session_state.page = "practice_setup"; st.rerun()
-    with col2:
-        if st.button("🎯 Test Mode", use_container_width=True):
-            st.session_state.page = "test_setup"; st.rerun()
 
 # ─────────────────────────────────────────────
 # PRACTICE SETUP   (Fix #1 — slider bug)

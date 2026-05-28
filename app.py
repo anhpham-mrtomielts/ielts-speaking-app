@@ -305,16 +305,27 @@ st.session_state.logo_url = "https://raw.githubusercontent.com/anhpham-mrtomielt
 
 if any_timer_running() or st.session_state.get("test_start_time"):
     st_autorefresh(interval=1000, limit=None, key="global_refresh")
+
+# Logo — shows on every page
 logo_url = st.session_state.get("logo_url", "")
-    if logo_url:
+if logo_url:
     st.markdown(
-        f"<div style='text-align:center;'><img src='{logo_url}' width='160'></div>",
+        f"<div style='text-align:center;'><img src='{logo_url}' width='120'></div>",
         unsafe_allow_html=True)
 # ─────────────────────────────────────────────
 # HOME PAGE
 # ─────────────────────────────────────────────
 def page_home():
-    # Logo placeholder — swap src with your own URL or base64 string
+    st.title("🎓 IELTS Speaking App")
+    st.markdown("Welcome! Choose a mode to get started.")
+    st.markdown("---")
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("📚 Practice Mode", use_container_width=True):
+            st.session_state.page = "practice_setup"; st.rerun()
+    with col2:
+        if st.button("🎯 Test Mode", use_container_width=True):
+            st.session_state.page = "test_setup"; st.rerun()
     
 
     st.title("🎓 IELTS Speaking App")

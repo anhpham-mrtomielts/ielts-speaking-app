@@ -17,7 +17,7 @@ st.markdown("""
     /* Primary accent: Bronze / Rustic Orange */
     :root {
         --accent:       #E77D22;
-        --accent-dark:  #8A3324;
+        --accent-dark:  #D16002;
         --accent-mid:   #D78C3D;
         --accent-light: #FDAE44;
         --accent-pale:  #FEE8D6;

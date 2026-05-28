@@ -24,6 +24,10 @@ st.markdown("""
         --accent-warn:  #E77D22;
     }
 
+    /* Page background */
+    .stApp {
+        background-color: #FFFAF5 !important;
+
     /* Sidebar & top bar tint */
     header[data-testid="stHeader"] { background: var(--accent-dark) !important; }
 

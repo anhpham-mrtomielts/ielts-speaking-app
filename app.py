@@ -200,12 +200,13 @@ def scroll_to_top():
         "<script>window.parent.document.querySelector('section.main').scrollTo(0,0);</script>",
         height=0)
 
-def elapsed_timer_bar():
-    """Orange pill bar fixed at top of content — always ticking."""
+def elapsed_timer_bar(position="top"):
+    """Orange pill bar — call with position='top' or 'bottom'."""
     if st.session_state.get("test_start_time"):
         elapsed = time.time() - st.session_state.test_start_time
+        margin  = "margin-bottom:10px;" if position == "top" else "margin-top:18px;"
         st.markdown(
-            f"<div class='elapsed-bar'>"
+            f"<div class='elapsed-bar' style='{margin}'>"
             f"<span>⏱ Total elapsed</span>"
             f"<span class='val'>{format_time(elapsed)}</span>"
             f"</div>",
@@ -301,11 +302,11 @@ def pick_test_p1_topics(all_topics):
         slot1_candidates = [t for t in SLOT1_OPTION_A if t in all_topics]
         slot1 = slot1_candidates[:1] if slot1_candidates else []
 
-    used      = set(slot1)
-    remaining = [t for t in all_topics if t not in used]
-    # We need 2 more random slots regardless of slot1 size
-    extra     = random.sample(remaining, min(2, len(remaining)))
-    return slot1 + extra          # e.g. ["Jobs","Studies","Travel","Technology"]
+    used         = set(slot1)
+    remaining    = [t for t in all_topics if t not in used]
+    # Slot 1 always counts as 1 slot. We need 2 more random topics to make 3 slots total.
+    extra        = random.sample(remaining, min(2, len(remaining)))
+    return slot1 + extra  # e.g. ["Home Towns","Travel","Tech"] or ["Jobs","Studies","Travel","Tech"]
 
 # ─────────────────────────────────────────────
 # SESSION STATE INIT
@@ -324,8 +325,6 @@ def init_state():
             st.session_state[k] = v
 
 init_state()
-
-st.session_state.logo_url = "https://raw.githubusercontent.com/anhpham-mrtomielts/ielts-speaking-app/main/logo.png"
 
 if any_timer_running() or st.session_state.get("test_start_time"):
     st_autorefresh(interval=1000, limit=None, key="global_refresh")
@@ -603,6 +602,7 @@ def page_test_part1():
             with col_t: compact_timer(f"test_p1_{topic}_{i}", 30)
         st.markdown("---")
 
+    elapsed_timer_bar("bottom")
     if st.button("➡ Continue to Part 2", use_container_width=True):
         st.session_state.page = "test_part2"; scroll_to_top(); st.rerun()
 
@@ -634,6 +634,7 @@ def page_test_part2():
         st.error("No Part 2 question found for this topic.")
 
     st.markdown("---")
+    elapsed_timer_bar("bottom")
     if st.button("➡ Continue to Part 3", use_container_width=True):
         st.session_state.page = "test_part3"; scroll_to_top(); st.rerun()
 
@@ -665,6 +666,7 @@ def page_test_part3():
     else:
         st.warning("No Part 3 questions found for this topic.")
 
+    elapsed_timer_bar("bottom")
     if st.button("✅ End Test & See Report", use_container_width=True):
         st.session_state.test_end_time = time.time()
         st.session_state.page = "test_report"; st.rerun()

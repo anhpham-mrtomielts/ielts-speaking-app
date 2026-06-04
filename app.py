@@ -962,17 +962,22 @@ def page_test_report():
                 continue
             stripped = line.strip()
             if not stripped:
+                pdf.set_x(pdf.l_margin)
                 pdf.ln(3)
             elif stripped == stripped.upper() and len(stripped) > 2:
                 pdf.ln(2)
+                pdf.set_x(pdf.l_margin)
                 pdf.set_fill_color(254, 232, 214)
                 pdf.set_font("Noto", "B", 12)
                 pdf.cell(W, 9, "  " + stripped, fill=True,
                          new_x=XPos.LMARGIN, new_y=YPos.NEXT)
                 pdf.set_font("Noto", "", 11)
+                pdf.set_x(pdf.l_margin)
                 pdf.ln(1)
             else:
+                pdf.set_x(pdf.l_margin)
                 pdf.multi_cell(W, 7, line)
+                pdf.set_x(pdf.l_margin)  # reset after multi_cell — x drifts to right edge
 
         return bytes(pdf.output())
 

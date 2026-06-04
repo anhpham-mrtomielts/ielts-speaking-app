@@ -2,6 +2,8 @@ import streamlit as st
 import pandas as pd
 import random
 import time
+from datetime import datetime
+from io import BytesIO
 from streamlit_autorefresh import st_autorefresh
 
 # ─────────────────────────────────────────────
@@ -110,6 +112,23 @@ st.markdown("""
         font-size: 0.82rem;
         font-weight: 700;
         letter-spacing: 0.5px;
+    }
+
+    /* Skip button — grey with red text */
+    button[kind="secondary"].skip-btn,
+    div[data-testid="stButton"] button.skip-btn {
+        background: #f0f0f0 !important;
+        color: #cc0000 !important;
+        border: 1px solid #ddd !important;
+        font-size: 0.85rem !important;
+        font-weight: 600 !important;
+    }
+    div[data-testid="stButton"]:has(button[key*="skip"]) button {
+        background: #f0f0f0 !important;
+        color: #cc0000 !important;
+        border: 1px solid #ddd !important;
+        font-size: 0.85rem !important;
+        font-weight: 600 !important;
     }
 
     /* Cue card */
@@ -847,31 +866,109 @@ def page_test_report():
         if notes_p2: st.markdown(f"**Part 2:** {notes_p2}")
         if notes_p3: st.markdown(f"**Part 3:** {notes_p3}")
 
-    # Export report as txt
+    # ── Export section ──
     st.markdown("---")
+    st.markdown("### 📥 Export Report")
+
+    candidate_name = st.text_input(
+        "Candidate name (optional):",
+        placeholder="e.g. Nguyen Van A",
+        key="candidate_name_input")
+
+    now          = datetime.now()
+    date_str     = now.strftime("%Y-%m-%d")
+    time_str     = now.strftime("%H:%M")
+    datetime_str = now.strftime("%Y-%m-%d %H:%M")
+    safe_name    = candidate_name.strip().replace(" ", "_") if candidate_name.strip() else "candidate"
+    file_stem    = f"IELTS_Report_{safe_name}_{now.strftime('%Y%m%d_%H%M')}"
+
+    # Build shared report content
     report_lines = [
         "IELTS SPEAKING TEST REPORT",
         "=" * 40,
-        f"Total Time: {format_time(total)}",
-        f"Part 1: {part_dur(st.session_state.time_p1_start, st.session_state.time_p1_end)}",
-        f"Part 2: {part_dur(st.session_state.time_p2_start, st.session_state.time_p2_end)}",
-        f"Part 3: {part_dur(st.session_state.time_p3_start, st.session_state.time_p3_end)}",
+        f"Date: {date_str}   Time: {time_str}",
+        f"Candidate: {candidate_name.strip() if candidate_name.strip() else '—'}",
+        "",
+        "TIME SUMMARY",
+        f"  Total : {format_time(total)}",
+        f"  Part 1: {part_dur(st.session_state.time_p1_start, st.session_state.time_p1_end)}",
+        f"  Part 2: {part_dur(st.session_state.time_p2_start, st.session_state.time_p2_end)}",
+        f"  Part 3: {part_dur(st.session_state.time_p3_start, st.session_state.time_p3_end)}",
         "",
         "TOPICS COVERED",
-        "Part 1: " + ", ".join(tq["p1_topics"]),
-        f"Part 2 & 3: {tq['p23_topic']}",
+        "  Part 1: " + ", ".join(tq["p1_topics"]),
+        f"  Part 2 & 3: {tq['p23_topic']}",
     ]
-    if notes_p1: report_lines += ["", "EXAMINER NOTES — Part 1", notes_p1]
-    if notes_p2: report_lines += ["", "EXAMINER NOTES — Part 2", notes_p2]
-    if notes_p3: report_lines += ["", "EXAMINER NOTES — Part 3", notes_p3]
+
+    skipped_p1 = st.session_state.get("skipped_p1", {})
+    skipped_p3 = st.session_state.get("skipped_p3", [])
+    any_skipped = any(v for v in skipped_p1.values()) or skipped_p3
+    if any_skipped:
+        report_lines += ["", "SKIPPED QUESTIONS"]
+        for topic, idxs in skipped_p1.items():
+            if idxs:
+                qs = st.session_state.locked_p1_questions.get(topic, [])
+                for i in idxs:
+                    if i < len(qs): report_lines.append(f"  P1 / {topic}: {qs[i]}")
+        if skipped_p3:
+            set_qs = st.session_state.locked_p3_set
+            for i in skipped_p3:
+                if i < len(set_qs): report_lines.append(f"  P3: {set_qs[i]}")
+
+    if notes_p1: report_lines += ["", "EXAMINER NOTES — Part 1", f"  {notes_p1}"]
+    if notes_p2: report_lines += ["", "EXAMINER NOTES — Part 2", f"  {notes_p2}"]
+    if notes_p3: report_lines += ["", "EXAMINER NOTES — Part 3", f"  {notes_p3}"]
+
     report_text = "\n".join(report_lines)
 
-    st.download_button(
-        label="📥 Download Report (.txt)",
-        data=report_text,
-        file_name="ielts_test_report.txt",
-        mime="text/plain",
-        use_container_width=True)
+    def build_pdf(lines, candidate, dt_str):
+        from fpdf import FPDF
+        pdf = FPDF()
+        pdf.add_page()
+        pdf.set_auto_page_break(auto=True, margin=15)
+        pdf.set_font("Helvetica", "B", 16)
+        pdf.cell(0, 10, "IELTS Speaking Test Report", ln=True, align="C")
+        pdf.set_font("Helvetica", "", 10)
+        pdf.cell(0, 7, f"Date & Time: {dt_str}", ln=True, align="C")
+        if candidate:
+            pdf.cell(0, 7, f"Candidate: {candidate}", ln=True, align="C")
+        pdf.ln(4)
+        pdf.set_draw_color(205, 127, 50)
+        pdf.set_line_width(0.8)
+        pdf.line(10, pdf.get_y(), 200, pdf.get_y())
+        pdf.ln(4)
+        pdf.set_font("Helvetica", "", 11)
+        for line in lines[4:]:          # skip header lines already drawn
+            if line.startswith("="):
+                continue
+            if line.isupper() and line.strip():
+                pdf.set_font("Helvetica", "B", 12)
+                pdf.ln(2)
+                pdf.cell(0, 8, line, ln=True)
+                pdf.set_font("Helvetica", "", 11)
+            else:
+                pdf.multi_cell(0, 7, line if line.strip() else " ")
+        return bytes(pdf.output())
+
+    col_txt, col_pdf = st.columns(2)
+    with col_txt:
+        st.download_button(
+            label="📄 Download TXT",
+            data=report_text,
+            file_name=f"{file_stem}.txt",
+            mime="text/plain",
+            use_container_width=True)
+    with col_pdf:
+        try:
+            pdf_bytes = build_pdf(report_lines, candidate_name.strip(), datetime_str)
+            st.download_button(
+                label="📕 Download PDF",
+                data=pdf_bytes,
+                file_name=f"{file_stem}.pdf",
+                mime="application/pdf",
+                use_container_width=True)
+        except Exception as e:
+            st.error(f"PDF generation failed: {e}")
 
     st.markdown("---")
     col1, col2 = st.columns(2)

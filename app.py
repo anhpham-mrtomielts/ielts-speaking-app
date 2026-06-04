@@ -923,19 +923,26 @@ def page_test_report():
 
     def build_pdf(lines, candidate, dt_str):
         from fpdf import FPDF
+        from fpdf.enums import XPos, YPos
+        def safe(text):
+            # Replace unicode punctuation that breaks latin-1
+            text = (text.replace("\u2014", "-").replace("\u2013", "-")
+                        .replace("\u2019", "'").replace("\u2018", "'")
+                        .replace("\u2026", "..."))
+            return text.encode("latin-1", errors="replace").decode("latin-1")
         pdf = FPDF()
         pdf.add_page()
         pdf.set_auto_page_break(auto=True, margin=15)
-        # Use built-in core font with latin encoding — avoids Unicode width crash
-        # Strip any non-latin1 characters safely so fpdf never chokes
-        def safe(text):
-            return text.encode("latin-1", errors="replace").decode("latin-1")
+        # Title
         pdf.set_font("Helvetica", "B", 16)
-        pdf.cell(0, 10, safe("IELTS Speaking Test Report"), ln=True, align="C")
+        pdf.cell(0, 10, safe("IELTS Speaking Test Report"),
+                 new_x=XPos.LMARGIN, new_y=YPos.NEXT, align="C")
         pdf.set_font("Helvetica", "", 10)
-        pdf.cell(0, 7, safe(f"Date & Time: {dt_str}"), ln=True, align="C")
+        pdf.cell(0, 7, safe(f"Date & Time: {dt_str}"),
+                 new_x=XPos.LMARGIN, new_y=YPos.NEXT, align="C")
         if candidate:
-            pdf.cell(0, 7, safe(f"Candidate: {candidate}"), ln=True, align="C")
+            pdf.cell(0, 7, safe(f"Candidate: {candidate}"),
+                     new_x=XPos.LMARGIN, new_y=YPos.NEXT, align="C")
         pdf.ln(4)
         pdf.set_draw_color(205, 127, 50)
         pdf.set_line_width(0.8)
@@ -946,13 +953,17 @@ def page_test_report():
             if line.startswith("="):
                 continue
             stripped = line.strip()
-            if stripped and stripped == stripped.upper() and len(stripped) > 2:
+            if not stripped:
+                pdf.ln(4)
+            elif stripped == stripped.upper() and len(stripped) > 2:
                 pdf.set_font("Helvetica", "B", 12)
                 pdf.ln(2)
-                pdf.cell(0, 8, safe(line), ln=True)
+                pdf.cell(0, 8, safe(line),
+                         new_x=XPos.LMARGIN, new_y=YPos.NEXT)
                 pdf.set_font("Helvetica", "", 11)
             else:
-                pdf.multi_cell(0, 7, safe(line) if stripped else " ")
+                pdf.cell(0, 7, safe(line),
+                         new_x=XPos.LMARGIN, new_y=YPos.NEXT)
         return bytes(pdf.output())
 
     col_txt, col_pdf = st.columns(2)

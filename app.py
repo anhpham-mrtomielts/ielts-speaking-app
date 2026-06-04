@@ -926,58 +926,117 @@ def page_test_report():
         from fpdf import FPDF
         from fpdf.enums import XPos, YPos
 
-        # Fonts live in the repo root alongside app.py
         base_dir = os.path.dirname(os.path.abspath(__file__))
         font_r   = os.path.join(base_dir, "NotoSans-Regular.ttf")
         font_b   = os.path.join(base_dir, "NotoSans-Bold.ttf")
 
         pdf = FPDF()
         pdf.add_page()
-        pdf.set_auto_page_break(auto=True, margin=15)
+        pdf.set_auto_page_break(auto=True, margin=20)
         pdf.add_font("Noto", "",  font_r)
         pdf.add_font("Noto", "B", font_b)
 
-        # Use explicit width — fixes fpdf2 v2.8.x multi_cell bug with add_font()
-        W = pdf.w - pdf.l_margin - pdf.r_margin
+        W  = pdf.w - pdf.l_margin - pdf.r_margin
+        lm = pdf.l_margin
 
-        # ── Header ──
-        pdf.set_font("Noto", "B", 18)
+        # ── Header banner ──────────────────────────
+        pdf.set_fill_color(138, 51, 36)          # accent-dark
+        pdf.rect(0, 0, pdf.w, 40, style="F")
+        pdf.set_text_color(255, 255, 255)
+        pdf.set_font("Noto", "B", 20)
+        pdf.set_xy(lm, 7)
         pdf.cell(W, 12, "IELTS Speaking Test Report",
                  new_x=XPos.LMARGIN, new_y=YPos.NEXT, align="C")
         pdf.set_font("Noto", "", 10)
+        pdf.set_xy(lm, 23)
         sub = f"Date & Time: {dt_str}"
         if candidate:
             sub += f"   |   Candidate: {candidate}"
         pdf.cell(W, 7, sub, new_x=XPos.LMARGIN, new_y=YPos.NEXT, align="C")
-        pdf.ln(3)
-        pdf.set_draw_color(205, 127, 50)
-        pdf.set_line_width(1.0)
-        pdf.line(10, pdf.get_y(), 200, pdf.get_y())
-        pdf.ln(6)
 
-        # ── Body ──
-        pdf.set_font("Noto", "", 11)
-        for line in lines[4:]:
-            if line.startswith("="):
-                continue
+        # Reset to body
+        pdf.set_text_color(40, 40, 40)
+        pdf.set_xy(lm, 48)
+
+        # ── Helpers ────────────────────────────────
+        def section(title):
+            pdf.ln(5)
+            pdf.set_x(lm)
+            pdf.set_fill_color(205, 127, 50)     # accent bronze
+            pdf.set_text_color(255, 255, 255)
+            pdf.set_font("Noto", "B", 11)
+            pdf.cell(W, 9, f"  {title}", fill=True,
+                     new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+            pdf.set_text_color(40, 40, 40)
+            pdf.set_font("Noto", "", 11)
+            pdf.set_x(lm)
+            pdf.ln(3)
+
+        def kv(label, value):
+            pdf.set_x(lm + 6)
+            pdf.set_font("Noto", "B", 10)
+            pdf.cell(44, 7, label, new_x=XPos.RIGHT, new_y=YPos.TOP)
+            pdf.set_font("Noto", "", 10)
+            pdf.multi_cell(W - 50, 7, value)
+            pdf.set_x(lm)
+
+        def body(text):
+            pdf.set_x(lm + 6)
+            pdf.set_font("Noto", "", 11)
+            pdf.multi_cell(W - 6, 7, text)
+            pdf.set_x(lm)
+
+        # ── Parse and render lines ─────────────────
+        # Group lines into sections
+        i = 4  # skip the 4 header lines already handled
+        while i < len(lines):
+            line    = lines[i]
             stripped = line.strip()
-            if not stripped:
-                pdf.set_x(pdf.l_margin)
-                pdf.ln(3)
-            elif stripped == stripped.upper() and len(stripped) > 2:
-                pdf.ln(2)
-                pdf.set_x(pdf.l_margin)
-                pdf.set_fill_color(254, 232, 214)
-                pdf.set_font("Noto", "B", 12)
-                pdf.cell(W, 9, "  " + stripped, fill=True,
-                         new_x=XPos.LMARGIN, new_y=YPos.NEXT)
-                pdf.set_font("Noto", "", 11)
-                pdf.set_x(pdf.l_margin)
-                pdf.ln(1)
+
+            if not stripped or line.startswith("="):
+                i += 1
+                continue
+
+            # Detect section headings (all-caps, len > 2)
+            if stripped == stripped.upper() and len(stripped) > 2:
+                section(stripped)
+                i += 1
+                # Collect following kv/body lines
+                while i < len(lines):
+                    sub_line    = lines[i]
+                    sub_stripped = sub_line.strip()
+                    if not sub_stripped:
+                        i += 1
+                        break
+                    if sub_stripped == sub_stripped.upper() and len(sub_stripped) > 2:
+                        break  # next section
+                    # Try kv: lines like "  Part 1: value"
+                    if ":" in sub_stripped:
+                        colon_idx = sub_stripped.index(":")
+                        label     = sub_stripped[:colon_idx + 1]
+                        value     = sub_stripped[colon_idx + 1:].strip()
+                        if len(label) < 20 and value:
+                            kv(label, value)
+                            i += 1
+                            continue
+                    # Plain body text
+                    body(sub_stripped)
+                    i += 1
             else:
-                pdf.set_x(pdf.l_margin)
-                pdf.multi_cell(W, 7, line)
-                pdf.set_x(pdf.l_margin)  # reset after multi_cell — x drifts to right edge
+                body(stripped)
+                i += 1
+
+        # ── Footer ─────────────────────────────────
+        pdf.set_y(-18)
+        pdf.set_x(lm)
+        pdf.set_draw_color(205, 127, 50)
+        pdf.set_line_width(0.5)
+        pdf.line(lm, pdf.get_y(), pdf.w - lm, pdf.get_y())
+        pdf.ln(2)
+        pdf.set_font("Noto", "", 8)
+        pdf.set_text_color(160, 160, 160)
+        pdf.cell(W, 5, "Generated by IELTS Speaking App", align="C",
+                 new_x=XPos.LMARGIN, new_y=YPos.NEXT)
 
         return bytes(pdf.output())
 

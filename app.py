@@ -926,28 +926,33 @@ def page_test_report():
         pdf = FPDF()
         pdf.add_page()
         pdf.set_auto_page_break(auto=True, margin=15)
+        # Use built-in core font with latin encoding — avoids Unicode width crash
+        # Strip any non-latin1 characters safely so fpdf never chokes
+        def safe(text):
+            return text.encode("latin-1", errors="replace").decode("latin-1")
         pdf.set_font("Helvetica", "B", 16)
-        pdf.cell(0, 10, "IELTS Speaking Test Report", ln=True, align="C")
+        pdf.cell(0, 10, safe("IELTS Speaking Test Report"), ln=True, align="C")
         pdf.set_font("Helvetica", "", 10)
-        pdf.cell(0, 7, f"Date & Time: {dt_str}", ln=True, align="C")
+        pdf.cell(0, 7, safe(f"Date & Time: {dt_str}"), ln=True, align="C")
         if candidate:
-            pdf.cell(0, 7, f"Candidate: {candidate}", ln=True, align="C")
+            pdf.cell(0, 7, safe(f"Candidate: {candidate}"), ln=True, align="C")
         pdf.ln(4)
         pdf.set_draw_color(205, 127, 50)
         pdf.set_line_width(0.8)
         pdf.line(10, pdf.get_y(), 200, pdf.get_y())
         pdf.ln(4)
         pdf.set_font("Helvetica", "", 11)
-        for line in lines[4:]:          # skip header lines already drawn
+        for line in lines[4:]:
             if line.startswith("="):
                 continue
-            if line.isupper() and line.strip():
+            stripped = line.strip()
+            if stripped and stripped == stripped.upper() and len(stripped) > 2:
                 pdf.set_font("Helvetica", "B", 12)
                 pdf.ln(2)
-                pdf.cell(0, 8, line, ln=True)
+                pdf.cell(0, 8, safe(line), ln=True)
                 pdf.set_font("Helvetica", "", 11)
             else:
-                pdf.multi_cell(0, 7, line if line.strip() else " ")
+                pdf.multi_cell(0, 7, safe(line) if stripped else " ")
         return bytes(pdf.output())
 
     col_txt, col_pdf = st.columns(2)
